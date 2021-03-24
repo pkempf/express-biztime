@@ -1,6 +1,7 @@
 /** Company routes. */
 
 const express = require("express");
+const slugify = require("slugify");
 const router = new express.Router();
 const db = require("../db");
 const ExpressError = require("../expressError");
@@ -15,7 +16,8 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-/** GET /[code] - return data about one company: `{company: {code, name, description, invoices: [id, ...]}}` */
+/** GET /[code] - return data about one company:
+ * `{company: {code, name, description, invoices: [...], industries: [...]}}` */
 router.get("/:code", async (req, res, next) => {
   try {
     const companyQuery = await db.query(
@@ -24,9 +26,18 @@ router.get("/:code", async (req, res, next) => {
     );
 
     const invoiceQuery = await db.query(
-      `SELECT id, comp_code, amt, paid, add_date, paid_date
+      `SELECT id
             FROM invoices
             WHERE comp_code = $1`,
+      [req.params.code]
+    );
+
+    const industryQuery = await db.query(
+      `SELECT i.code
+            FROM industries AS i
+            LEFT JOIN comps_inds AS ci 
+                ON i.code = ci.ind_code
+            WHERE ci.comp_code = $1`,
       [req.params.code]
     );
 
@@ -37,12 +48,9 @@ router.get("/:code", async (req, res, next) => {
       );
     }
 
-    let company = {
-      code: companyQuery.rows[0].code,
-      name: companyQuery.rows[0].name,
-      description: companyQuery.rows[0].description,
-      invoices: invoiceQuery.rows,
-    };
+    let company = companyQuery.rows[0];
+    company.invoices = invoiceQuery.rows;
+    company.industries = industryQuery.rows;
     return res.json({ company: company });
   } catch (err) {
     return next(err);
@@ -56,7 +64,11 @@ router.post("/", async (req, res, next) => {
       `INSERT INTO companies (code, name, description)
                 VALUES ($1, $2, $3)
                 RETURNING code, name, description`,
-      [req.body.code, req.body.name, req.body.description]
+      [
+        slugify(req.body.name, { lower: true, strict: true }),
+        req.body.name,
+        req.body.description,
+      ]
     );
 
     return res.status(201).json({ company: result.rows[0] });

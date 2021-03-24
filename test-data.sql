@@ -1,4 +1,4 @@
-\c biztime
+\c biztime-test
 
 DROP TABLE IF EXISTS invoices CASCADE;
 DROP TABLE IF EXISTS companies CASCADE;
@@ -31,23 +31,3 @@ CREATE TABLE comps_inds (
     ind_code text NOT NULL REFERENCES industries ON DELETE CASCADE,
     PRIMARY KEY (comp_code, ind_code)
 );
-
-INSERT INTO companies
-  VALUES ('apple', 'Apple Computer', 'Maker of OSX.'),
-         ('ibm', 'IBM', 'Big blue.');
-
-INSERT INTO invoices (comp_Code, amt, paid, paid_date)
-  VALUES ('apple', 100, false, null),
-         ('apple', 200, false, null),
-         ('apple', 300, true, '2018-01-01'),
-         ('ibm', 400, false, null);
-
-INSERT INTO industries
-  VALUES ('tech', 'Technology'),
-         ('telecom', 'Telecommunications');
-
-INSERT INTO comps_inds
-  VALUES ('apple', 'tech'),
-         ('apple', 'telecom'),
-         ('ibm', 'tech');
-

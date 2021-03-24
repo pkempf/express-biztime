@@ -9,7 +9,7 @@ const ExpressError = require("../expressError");
 router.get("/", async (req, res, next) => {
   try {
     const invoicesQuery = await db.query("SELECT id, comp_code FROM invoices");
-    return res.json({ companies: invoicesQuery.rows });
+    return res.json({ invoices: invoicesQuery.rows });
   } catch (err) {
     return next(err);
   }
@@ -72,18 +72,48 @@ router.post("/", async (req, res, next) => {
 /** PUT /[id] - edit existing invoice; return `{invoice: invoice}` */
 router.put("/:id", async (req, res, next) => {
   try {
-    const result = await db.query(
-      `UPDATE invoices
-                  SET amt = $2
-                  WHERE id = $1
-                  RETURNING id, comp_code, amt, paid, add_date, paid_date`,
-      [req.params.id, req.body.amt]
+    const invoice = await db.query(
+      `SELECT id, amt, paid, paid_date 
+            FROM invoices
+            WHERE id = $1`,
+      [req.params.id]
     );
 
-    if (result.rows.length === 0) {
+    let result;
+
+    if (invoice.rows.length === 0) {
       throw new ExpressError(
         `There is no invoice with id ${req.params.id}`,
         404
+      );
+    } else if (invoice.rows[0].paid === req.body.paid) {
+      result = await db.query(
+        `UPDATE invoices
+                SET amt = $2
+                WHERE id = $1
+                RETURNING id, comp_code, amt, paid, add_date, paid_date`,
+        [req.params.id, req.body.amt]
+      );
+    } else if (invoice.rows[0].paid && !req.body.paid) {
+      result = await db.query(
+        `UPDATE invoices
+                SET amt = $2, paid = f, paid_date = null
+                WHERE id = $1
+                RETURNING id, comp_code, amt, paid, add_date, paid_date`,
+        [req.params.id, req.body.amt]
+      );
+    } else if (!invoice.rows[0].paid && req.body.paid) {
+      result = await db.query(
+        `UPDATE invoices
+                SET amt = $2, paid = t, paid_date = CURRENT_DATE
+                WHERE id = $1
+                RETURNING id, comp_code, amt, paid, add_date, paid_date`,
+        [req.params.id, req.body.amt]
+      );
+    } else {
+      throw new ExpressError(
+        `Internal error. req.body.paid: ${req.body.paid}, invoice paid = ${invoice.rows[0].paid}`,
+        500
       );
     }
     return res.json({ invoice: result.rows[0] });
